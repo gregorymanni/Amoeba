@@ -3,8 +3,7 @@
 Amoeba drops a living organism into your vault, bringing dynamic visual movement to Graph view, and helping you clean up broken links at the same time.
 
 <p align="left">
-  <img src="./images/amoeba.gif" width="48%" alt="Amoeba moving through Graph view" />
-  <img src="./images/spider.gif" width="48%" alt="Amoeba using the Spider preset" />
+  <img src="./images/amoeba.gif" alt="Amoeba moving through Graph view (left) and using the Spider preset (right)" />
 </p>
 
 ## The Idea
