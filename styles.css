@@ -1,0 +1,7 @@
+/* Icon injected into the Amoeba folder's row in the File Explorer.
+   See decorateFolderIcon() in main.js. */
+.amoeba-folder-icon {
+	display: inline-flex;
+	margin-right: 4px;
+	vertical-align: middle;
+}
