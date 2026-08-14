@@ -70,24 +70,39 @@ Inside the Amoeba note itself, you will find:
 
 ## FAQ
 
-**Why can't I see the amoeba moving?**
-- Very large graph databases with several thousand links will likely make it hard to view the amoeba. It's also possible your Graph view 'Forces' settings aren't optimal for viewing.
+<details>
+<summary>Why can't I see the amoeba moving?</summary>
+<p>Very large graph databases with several thousand links will likely make it hard to view the amoeba. It's also possible your Graph view 'Forces' settings aren't optimal for viewing.</p>
+</details>
+<br>
 
-**What are the best Graph view 'Forces' settings to view the amoeba?**
-- The most important is a high 'Link force' value, otherwise the amoeba will be stationary. Here's a good place to start with your settings: *Center force = 0.50, Repel force = 13.50, Link force = 1.00, Link distance = 30*.
+<details>
+<summary>What are the best Graph view 'Forces' settings to view the amoeba?</summary>
+<p>The most important is a high 'Link force' value, otherwise the amoeba will be stationary. Here's a good place to start with your settings: <em>Center force = 0.50, Repel force = 13.50, Link force = 1.00, Link distance = 30</em>.</p>
+</details>
+<br>
 
-**Will this plugin write inside or change any of my existing notes?**
-- No, only the 'Amoeba' note itself changes.
+<details>
+<summary>Will this plugin write inside or change any of my existing notes?</summary>
+<p>No, only the 'Amoeba' note itself changes.</p>
+</details>
+<br>
 
-**Will removing this plugin delete the 'Amoeba' folder or its contents?**
-- No — no need to worry about losing any notes you add to the 'Amoeba' folder.
+<details>
+<summary>Will removing this plugin delete the 'Amoeba' folder or its contents?</summary>
+<p>No — no need to worry about losing any notes you add to the 'Amoeba' folder.</p>
+</details>
+<br>
 
-**Why can't I write inside 'Amoeba.pseudopod' notes?**  
--  The Pseudopods slider in settings adds and removes 'Amoeba.pseudopod' notes, so they are uneditable on purpose. However, it's possible to link your own orphan notes to the 'Amoeba' to create the same effect, and these will not be impacted by the plugin.
+<details>
+<summary>Why can't I write inside 'Amoeba.pseudopod' notes?</summary>
+<p>The Pseudopods slider in settings adds and removes 'Amoeba.pseudopod' notes, so they are uneditable on purpose. However, it's possible to link your own orphan notes to the 'Amoeba' to create the same effect, and these will not be impacted by the plugin.</p>
+</details>
+<br>
 
 ## Developer Notes
 
-**Support:** If you like Amoeba and would like to support my work and other future creative projects, you can donate here: 
+**Support:** If you like Amoeba and would like to support my work and other future creative projects, you can donate here: [Ko-fi](https://ko-fi.com/gregory_manni)
 
 <a href="https://ko-fi.com/gregory_manni"><img src="https://storage.ko-fi.com/cdn/kofi3.png?v=3" width="150" alt="ko-fi" /></a>
 

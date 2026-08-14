@@ -3,7 +3,7 @@
   "name": "Amoeba",
   "version": "1.0.0",
   "minAppVersion": "1.13.7",
-  "description": "Adds a living organism to Graph view. The \"Amoeba\" grabs on to your notes as it moves around the global graph, creating an interesting dynamic visual. It can scan your vault for broken links too.",
+  "description": "Adds a living organism to Graph view. The \"Amoeba\" grabs on to your notes as it moves around the global graph, creating a unique dynamic visual. It can scan your vault for broken links too.",
   "author": "Gregory Manni",
   "isDesktopOnly": false,
   "fundingUrl": "https://ko-fi.com/gregory_manni"
