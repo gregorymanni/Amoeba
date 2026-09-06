@@ -1,6 +1,10 @@
+---
+created: 2026-09-02T17:56
+updated: 2026-09-06T12:00
+---
 # Obsidian Amoeba
 
-Amoeba drops a living organism into your vault, bringing dynamic visual movement to Graph view, and helping you clean up broken links at the same time.
+Amoeba drops a living organism into your vault, bringing dynamic visual movement to Graph view, in addition to some neat note interaction features.
 
 <p align="left">
   <img src="./images/amoeba.gif" alt="Amoeba moving through Graph view (left) and using the Spider preset (right)" />
@@ -8,29 +12,30 @@ Amoeba drops a living organism into your vault, bringing dynamic visual movement
 
 ## The Idea
 
-Graph view looks great, but it quickly becomes the same stale, motionless vault overview that you saw yesterday... and the day before that. Ideas are organic and always changing, and our technology should reflect that.
+Graph view looks great, but it quickly becomes the same stale, motionless vault overview that you saw yesterday. Ideas are organic and always changing, and our technology should reflect that.
 
 Amoeba brings life into your graph by:
 
 - Introducing a self-powered, moving 'Amoeba' note inside the Graph view environment, which sets the global graph in motion
 - Providing customizable parameters to adjust the movement of the amoeba to your liking — including a Spider preset!
-- (Optionally) Logging your broken links as the amoeba encounters them to help you clean up your vault
+- Writing an abstract poem each day using words pulled from notes in your vault
+- Logging your broken links as the amoeba encounters them to help you clean up your vault
 
 ## How it works
 
-Amoeba creates a note inside your vault that randomly links and unlinks with other notes — a constantly self-updating process that causes the note to pull itself and other notes around the graph. Sub-notes that trail the amoeba are also created, adding to the visual effect.
+Amoeba creates a note inside your vault that randomly links and unlinks with other notes — a constantly self-updating process that causes the note to pull itself and other notes around the graph. Sub-notes that trail the amoeba add to the visual effect.
 
-But the amoeba can be helpful too. Turn on broken link scanning, and the amoeba logs broken links found across the notes it encounters and adds them to a checklist. Check them off as you fix them, and the amoeba eventually removes them from the log.
+But the amoeba can interact with your vault too. It **constructs a poem** using your notes, just for fun (English only for now). Turn on **broken link scanning**, and the amoeba logs broken links found across the notes it encounters and adds them to a checklist. Check them off as you fix them, and the amoeba eventually removes them from the log.
 
 Parameters in settings help you determine the movement, speed, and look of your amoeba, including: 
-- **Movement interval:** how quickly the amoeba jumps to a new note
+- **Speed:** how quickly the amoeba jumps to a new note
 - **Simultaneous links:** how many notes the amoeba links to at once
 - **Pseudopods:** the number of trailing sub-notes linked to the amoeba
 - **Color:** can be changed in Graph view settings, like any other note
-- **Advanced settings** to fine-tune link scanning, if desired
 
 Inside the Amoeba note itself, you will find:
 - **The Note Stream:** shows the notes the amoeba is currently linked to
+- **Today's Vault Poem:** a short, abstract poem built from the notes it visits
 - **Broken Link Encounters:** a checklist log of broken links that have been discovered
 - **Pseudopods:** a short list linking the amoeba's trailing sub-notes 
 
@@ -38,7 +43,7 @@ Inside the Amoeba note itself, you will find:
   <img src="./images/amoeba2.gif" width="100%" alt="Amoeba closeup" />
 </p>
 
-*Note: This plugin frequently agitates the graph view renderer, which may cause a spike in CPU usage as long as the amoeba is active. It is not recommended for giant database-style vaults.* 
+*Note: This plugin frequently agitates the graph view renderer, which may cause a spike in CPU usage as long as graph view is open. It is not recommended for giant database-style vaults.* 
 
 ## Getting started
 
@@ -55,18 +60,19 @@ Inside the Amoeba note itself, you will find:
 
 ## Settings
 
-| Setting                                             | Description                                                                              |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Initialize                                          | *Creates the amoeba, also used for stopping and starting*                                  |
-| Movement interval                                   | *Sets the interval between movements (0.25-5 seconds)*                                     |
-| Simultaneous links                                  | *Sets the number of links the amoeba connects to (0-10)*                                   |
-| Pseudopods                                          | *Sets the number of trailing sub-notes (0-10)*                                             |
-| Move like a spider                                  | *Button preset that makes the amoeba behave like a fast-moving spider*                     |
-| **Broken Link Scanning**                            |                                                                                            |
-| Scan for broken links                               | *Toggles broken link scanning on/off*                                                      |
-| Continue scanning while global Graph view is closed | *Toggles whether broken link scanning continues in the background, even when the amoeba isn't visible* |
-| Scan folder                                         | *Limits scanning to a specific folder/subfolder*                                           |
-| Interact with excluded files                        | *Toggles whether to scan your Excluded files*                                    |
+| Setting                                             | Description                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Initialize                                          | *Creates the amoeba, also used for stopping and starting*                                                      |
+| Speed                                               | *Sets the interval between movements*                                                                          |
+| Simultaneous links                                  | *Sets the number of links the amoeba connects to (0-10)*                                                       |
+| Pseudopods                                          | *Sets the number of trailing sub-notes (0-10)*                                                                 |
+| Move like a spider                                  | *Preset toggle that makes the amoeba behave like a fast-moving spider*                                         |
+| Continue interactions while global graph view is closed | *Toggles whether note interactions continue in the background, even when the amoeba isn't visible*         |
+| **Note interactions**                               |                                                                                                                |
+| Write a daily vault poem                            | *Toggles poem writing on/off*                                                                                  |
+| Scan for broken links                               | *Toggles broken link scanning on/off*                                                                          |
+| Scan folder                                         | *Limits scanning to a specific folder/subfolder*                                                               |
+| Interact with excluded files                        | *Toggles whether to scan your Excluded files*                                                                  |
 
 ## FAQ
 
@@ -106,4 +112,5 @@ Inside the Amoeba note itself, you will find:
 
 <a href="https://ko-fi.com/gregory_manni"><img src="https://storage.ko-fi.com/cdn/kofi3.png?v=3" width="150" alt="ko-fi" /></a>
 
-*AI Use Disclosure: This plugin was coded responsibly with the help of Claude Sonnet 5.*
+- The poem feature uses spencer kelly's [compromise.js](https://github.com/spencermountain/compromise) library for language processing
+- *AI Use Disclosure: This plugin was coded with the help of Claude.*

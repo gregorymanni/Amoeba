@@ -1,0 +1,18 @@
+{
+  "name": "amoeba",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Build tooling for the Amoeba Obsidian plugin. Not published to npm — manifest.json is what Obsidian reads.",
+  "main": "main.js",
+  "scripts": {
+    "build": "node build/assemble.js",
+    "dev": "node build/watch.js"
+  },
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "compromise": "^14.14.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
