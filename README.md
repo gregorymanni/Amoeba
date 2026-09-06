@@ -28,7 +28,6 @@ Parameters in settings help you determine the movement, speed, and look of your 
 - **Simultaneous links:** how many notes the amoeba links to at once
 - **Pseudopods:** the number of trailing sub-notes linked to the amoeba
 - **Color:** can be changed in Graph view settings, like any other note
-- **Advanced settings** to fine-tune link scanning, if desired
 
 Inside the Amoeba note itself, you will find:
 - **The Note Stream:** shows the notes the amoeba is currently linked to
@@ -40,7 +39,7 @@ Inside the Amoeba note itself, you will find:
   <img src="./images/amoeba2.gif" width="100%" alt="Amoeba closeup" />
 </p>
 
-*Note: This plugin frequently agitates the graph view renderer, which may cause a spike in CPU usage as long as the amoeba is active. It is not recommended for giant database-style vaults.* 
+*Note: This plugin frequently agitates the graph view renderer, which may cause a spike in CPU usage as long as graph view is open. It is not recommended for giant database-style vaults.* 
 
 ## Getting started
 
@@ -64,10 +63,10 @@ Inside the Amoeba note itself, you will find:
 | Simultaneous links                                  | *Sets the number of links the amoeba connects to (0-10)*                                                       |
 | Pseudopods                                          | *Sets the number of trailing sub-notes (0-10)*                                                                 |
 | Move like a spider                                  | *Preset toggle that makes the amoeba behave like a fast-moving spider*                                         |
-| Write a daily vault poem                            | *Toggles poem writing on/off.*                                                                                 |
-| **Broken link scanning**                            |                                                                                                                |
-| Scan for broken links                               | *Toggles broken link scanning on/off. A frontmatter checkbox inside the Amoeba note serves the same function.* |
-| Continue scanning while global Graph view is closed | *Toggles whether broken link scanning continues in the background, even when the amoeba isn't visible*         |
+| Continue interactions while global graph view is closed | *Toggles whether note interactions continue in the background, even when the amoeba isn't visible*         |
+| **Note interactions**                               |                                                                                                                |
+| Write a daily vault poem                            | *Toggles poem writing on/off*                                                                                  |
+| Scan for broken links                               | *Toggles broken link scanning on/off*                                                                          |
 | Scan folder                                         | *Limits scanning to a specific folder/subfolder*                                                               |
 | Interact with excluded files                        | *Toggles whether to scan your Excluded files*                                                                  |
 
