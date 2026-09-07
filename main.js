@@ -10442,13 +10442,29 @@ class AmoebaSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     // Reference to "Move like a spider"'s toggle (built further down),
-    // captured here so Simultaneous links and Pseudopods — built earlier —
-    // can flip it off from inside their own onChange handlers without a
-    // full containerEl.empty()/rebuild, which would rip out whichever
-    // slider the user has mid-drag. Their reset buttons don't need this —
-    // they already call this.display() themselves, which rebuilds the
-    // toggle correctly along with everything else.
+    // captured here so every other control that can affect spider mode —
+    // Simultaneous links, Pseudopods, Speed, and each of their reset
+    // buttons — can sync it directly from inside their own
+    // onChange/onClick handlers, instead of a full containerEl.empty()/
+    // rebuild (which would also rip out whichever slider the user has
+    // mid-drag).
     let spiderToggle;
+
+    // References to "Scan folder" and "Interact with excluded files" (built
+    // further down), captured for the same reason as spiderToggle above —
+    // the "Scan for broken links" toggle flips their visibility directly via
+    // Obsidian's own HTMLElement.toggleVisibility() instead of a full
+    // containerEl.empty()/rebuild.
+    let scanFolderSetting;
+    let includeExcludedSetting;
+
+    // References to the Speed dropdown and the Simultaneous links/Pseudopods
+    // sliders (built further down), captured so "Move like a spider" can
+    // push its preset values into them directly with setValue() instead of
+    // a full containerEl.empty()/rebuild.
+    let speedDropdown;
+    let linkCountSlider;
+    let pseudopodsSlider;
 
     // The only place in the whole plugin that triggers folder/note creation
     // — see initializeAndStart(). The button's label and click behavior
@@ -10516,6 +10532,7 @@ class AmoebaSettingTab extends PluginSettingTab {
           'rhythm, increasing during the day and slowing at night.'
       )
       .addDropdown((dropdown) => {
+        speedDropdown = dropdown;
         for (const option of SPEED_OPTIONS) dropdown.addOption(option.key, option.label);
         dropdown.setValue(currentSpeedKey()).onChange(async (key) => {
           const option = SPEED_OPTIONS.find((o) => o.key === key);
@@ -10538,14 +10555,16 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.settings.speedMode = DEFAULT_SETTINGS.speedMode;
             this.plugin.settings.speedMs = DEFAULT_SETTINGS.speedMs;
             await this.plugin.saveSettings();
-            this.display();
+            speedDropdown?.setValue(currentSpeedKey());
+            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
           })
       );
 
     new Setting(containerEl)
       .setName('Simultaneous links')
       .setDesc('How many notes the amoeba links to at once. Higher is a busier, faster scan.')
-      .addSlider((slider) =>
+      .addSlider((slider) => {
+        linkCountSlider = slider;
         slider
           .setLimits(1, 10, 1)
           .setValue(this.plugin.settings.linkCount)
@@ -10555,8 +10574,8 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.exitSpiderModeIfMismatched();
             spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
             await this.plugin.saveSettings();
-          })
-      )
+          });
+      })
       .addExtraButton((button) =>
         button
           .setIcon('rotate-ccw')
@@ -10565,7 +10584,8 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.settings.linkCount = DEFAULT_SETTINGS.linkCount;
             this.plugin.exitSpiderModeIfMismatched();
             await this.plugin.saveSettings();
-            this.display();
+            linkCountSlider?.setValue(this.plugin.settings.linkCount);
+            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
           })
       );
 
@@ -10574,7 +10594,8 @@ class AmoebaSettingTab extends PluginSettingTab {
       .setDesc(
         "The number of trailing sub-notes linked to the main 'Amoeba' note, which are dragged along like a real amoeba's pseudopods. 'Amoeba.pseudopod' notes cannot hold text content."
       )
-      .addSlider((slider) =>
+      .addSlider((slider) => {
+        pseudopodsSlider = slider;
         slider
           .setLimits(0, 10, 1)
           .setValue(this.plugin.settings.pseudopods)
@@ -10587,8 +10608,8 @@ class AmoebaSettingTab extends PluginSettingTab {
             // Don't create pseudopod notes before Initialize has run —
             // the setting is saved either way and takes effect once it has.
             if (this.plugin.isInitialized()) await this.plugin.syncPseudopods();
-          })
-      )
+          });
+      })
       .addExtraButton((button) =>
         button
           .setIcon('rotate-ccw')
@@ -10598,7 +10619,8 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.exitSpiderModeIfMismatched();
             await this.plugin.saveSettings();
             if (this.plugin.isInitialized()) await this.plugin.syncPseudopods();
-            this.display();
+            pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
+            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
           })
       );
 
@@ -10630,27 +10652,16 @@ class AmoebaSettingTab extends PluginSettingTab {
           }
           await this.plugin.saveSettings();
           if (this.plugin.isInitialized()) await this.plugin.syncPseudopods();
-          this.display();
+          // Pushes the preset (or, on switching off, the unchanged current
+          // values) into the Speed/Simultaneous links/Pseudopods controls
+          // directly — the same surgical-sync pattern those controls already
+          // use to update this toggle — instead of a full
+          // containerEl.empty()/rebuild that would reset scroll position.
+          speedDropdown?.setValue(currentSpeedKey());
+          linkCountSlider?.setValue(this.plugin.settings.linkCount);
+          pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
         });
       });
-
-    // A general "keep interacting in the background" toggle — always shown,
-    // always in effect (not gated on broken-link scanning): see tick()'s
-    // keepWalking calculation and DEFAULT_SETTINGS' comment on
-    // continueScanningWhileGraphClosed for what it actually gates.
-    new Setting(containerEl)
-      .setName('Continue interactions while global graph view is closed')
-      .setDesc(
-        "The amoeba continues running vault interactions in the background, even when it isn't visible."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.continueScanningWhileGraphClosed)
-          .onChange(async (value) => {
-            this.plugin.settings.continueScanningWhileGraphClosed = value;
-            await this.plugin.saveSettings();
-          })
-      );
 
     const noteEl = containerEl.createEl('p', {
       cls: 'setting-item-description',
@@ -10665,6 +10676,24 @@ class AmoebaSettingTab extends PluginSettingTab {
     // Amoeba note itself, which is styled separately and not subject to
     // this convention.
     new Setting(containerEl).setName('Note interactions').setHeading();
+
+    // A general "keep interacting in the background" toggle — always shown,
+    // always in effect (not gated on broken-link scanning): see tick()'s
+    // keepWalking calculation and DEFAULT_SETTINGS' comment on
+    // continueScanningWhileGraphClosed for what it actually gates.
+    new Setting(containerEl)
+      .setName('Continue interactions while global graph view is closed')
+      .setDesc(
+        "The amoeba continues running note interactions in the background, even when it isn't visible."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.continueScanningWhileGraphClosed)
+          .onChange(async (value) => {
+            this.plugin.settings.continueScanningWhileGraphClosed = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName('Write a daily vault poem')
@@ -10692,58 +10721,64 @@ class AmoebaSettingTab extends PluginSettingTab {
             // sync — see setCleanupHelper().
             await this.plugin.setCleanupHelper(value ? 'on' : 'visualOnly');
             // Scan folder / Interact with excluded files only make sense
-            // once scanning is on — redraw to show/hide them, same
-            // behavior as before this was a dropdown. ("Continue
+            // once scanning is on. Toggling their visibility directly
+            // (Obsidian's own HTMLElement.toggleVisibility(), the same
+            // show/hide convention Obsidian's own UI uses — not a
+            // containerEl.empty()/rebuild) leaves the rest of the tab, and
+            // the user's scroll position, untouched. ("Continue
             // interactions while global graph view is closed" used to be a
             // third setting gated here too — it's a general toggle now,
             // shown unconditionally further up, so it's unaffected.)
-            this.display();
+            scanFolderSetting.settingEl.toggleVisibility(value);
+            includeExcludedSetting.settingEl.toggleVisibility(value);
           })
       );
 
-    // The two settings below only apply once broken-link scanning is on,
-    // so they're hidden entirely while it's off rather than shown disabled.
-    // "Continue interactions while global graph view is closed" used to
-    // live here too, but it's a general toggle (not scanning-specific —
-    // see its own setting above, near "Move like a spider"), so it moved
-    // out and stays visible regardless of this setting.
-    if (this.plugin.settings.cleanupHelper === 'on') {
-      new Setting(containerEl)
-        .setName('Scan folder')
-        .setDesc(
-          'Restrict which notes the amoeba will interact with to just this folder and its subfolders. Leave blank to use the whole vault.'
-        )
-        .addText((text) => {
-          text
-            .setPlaceholder('Example: Folder/Subfolder')
-            .setValue(this.plugin.settings.scanFolderPath)
-            .onChange(async (value) => {
-              // normalizePath('') returns '/' rather than '', which
-              // isWithinScanFolder() would treat as a real (unmatchable)
-              // folder instead of "whole vault" — so an emptied field has
-              // to bypass normalizePath() entirely rather than pass '' to it.
-              const trimmed = value.trim();
-              this.plugin.settings.scanFolderPath = trimmed ? normalizePath(trimmed) : '';
-              await this.plugin.saveSettings();
-            });
-          new FolderSuggest(this.app, text.inputEl, async (path) => {
-            this.plugin.settings.scanFolderPath = normalizePath(path);
+    // The two settings below only apply once broken-link scanning is on, so
+    // they start hidden rather than shown disabled — toggleVisibility() is
+    // applied once here too, since cleanupHelper may already be 'on' when
+    // the tab first opens. "Continue interactions while global graph view is
+    // closed" used to live here too, but it's a general toggle (not
+    // scanning-specific — see its own setting above, directly under the
+    // "Note interactions" heading), so it moved out and stays visible
+    // regardless of this setting.
+    scanFolderSetting = new Setting(containerEl)
+      .setName('Scan folder')
+      .setDesc(
+        'Restrict which notes the amoeba will interact with to just this folder and its subfolders. Leave blank to use the whole vault.'
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder('Example: Folder/Subfolder')
+          .setValue(this.plugin.settings.scanFolderPath)
+          .onChange(async (value) => {
+            // normalizePath('') returns '/' rather than '', which
+            // isWithinScanFolder() would treat as a real (unmatchable)
+            // folder instead of "whole vault" — so an emptied field has
+            // to bypass normalizePath() entirely rather than pass '' to it.
+            const trimmed = value.trim();
+            this.plugin.settings.scanFolderPath = trimmed ? normalizePath(trimmed) : '';
             await this.plugin.saveSettings();
           });
+        new FolderSuggest(this.app, text.inputEl, async (path) => {
+          this.plugin.settings.scanFolderPath = normalizePath(path);
+          await this.plugin.saveSettings();
         });
+      });
+    scanFolderSetting.settingEl.toggleVisibility(this.plugin.settings.cleanupHelper === 'on');
 
-      new Setting(containerEl)
-        .setName('Interact with excluded files')
-        .setDesc(
-          "Turn on to allow notes in your Excluded files to be scanned. Off by default."
-        )
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.includeExcludedFiles).onChange(async (value) => {
-            this.plugin.settings.includeExcludedFiles = value;
-            await this.plugin.saveSettings();
-          })
-        );
-    }
+    includeExcludedSetting = new Setting(containerEl)
+      .setName('Interact with excluded files')
+      .setDesc(
+        "Turn on to allow notes in your Excluded files to be scanned. Off by default."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.includeExcludedFiles).onChange(async (value) => {
+          this.plugin.settings.includeExcludedFiles = value;
+          await this.plugin.saveSettings();
+        })
+      );
+    includeExcludedSetting.settingEl.toggleVisibility(this.plugin.settings.cleanupHelper === 'on');
   }
 }
 
