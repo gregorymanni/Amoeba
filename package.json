@@ -1,6 +1,6 @@
 {
   "name": "amoeba",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "private": true,
   "description": "Build tooling for the Amoeba Obsidian plugin. Not published to npm — manifest.json is what Obsidian reads.",
   "main": "main.js",

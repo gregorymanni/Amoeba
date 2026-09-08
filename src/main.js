@@ -216,6 +216,16 @@ function isRecognizedEnglishWord(word) {
 // Every call site below is written to degrade gracefully — no-op or fall
 // back to a safe default — if the internal shape it depends on changes.
 
+// localStorage key (via app.saveLocalStorage()/loadLocalStorage(), not
+// settings/data.json) for whether Amoeba is disabled on this specific
+// device. data.json lives inside the vault and travels with it through
+// whatever syncs the vault (iCloud, Obsidian Sync, a plain file-sync
+// service) — a device-scoped override has to live outside that, or it
+// would just turn into "disabled everywhere" the moment it synced.
+// localStorage is per-device by design, so this stays put regardless of
+// how the vault itself is kept in sync.
+const DEVICE_DISABLED_KEY = 'amoeba-disabled-on-this-device';
+
 // Frontmatter property that starts/stops the amoeba, shown as-is in
 // Obsidian's Properties panel — the key itself is the human-readable label.
 const FIELD_ENABLED = 'Run Amoeba';
@@ -1512,6 +1522,10 @@ function deserializePoemPool(saved) {
 
 module.exports = class AmoebaPlugin extends Plugin {
   async onload() {
+    // Read before anything else touches vault/sync state — a purely local,
+    // synchronous read, so there's no window where a sync-driven event
+    // could fire before this is set. See DEVICE_DISABLED_KEY.
+    this.disabledOnThisDevice = !!this.app.loadLocalStorage(DEVICE_DISABLED_KEY);
     this.amoebas = new Map(); // file path -> AmoebaState
     this.mitosis = null; // the one in-progress mitosis event, if any — see MitosisState
     this.poemPool = null; // today's harvested Vault Poem words — see PoemPool, ensurePoemPoolForToday()
@@ -1573,7 +1587,7 @@ module.exports = class AmoebaPlugin extends Plugin {
       id: 'start',
       name: 'Start Amoeba',
       checkCallback: (checking) => {
-        if (this.setupBlocked) return false;
+        if (this.setupBlocked || this.disabledOnThisDevice) return false;
         if (this.amoebas.has(this.getAmoebaNotePath())) return false; // already running
         if (checking) return true;
         this.initializeAndStart();
@@ -1671,11 +1685,13 @@ module.exports = class AmoebaPlugin extends Plugin {
           const isRunning = this.amoebas.has(file.path);
           if (wantsRunning && !isRunning) {
             // Unlike the stop branch below, starting is gated — never while
-            // a setup conflict is blocking things, and only for the actual
-            // Amoeba note. A plain `return` here would also skip the Scan
-            // for broken links check further down, so this just skips its
-            // own branch instead.
-            if (!this.setupBlocked && file.path === this.getAmoebaNotePath()) {
+            // a setup conflict is blocking things, never on a device that's
+            // disabled itself (this checkbox can flip to true here from a
+            // sync pulling in another device's change, not just a local
+            // edit), and only for the actual Amoeba note. A plain `return`
+            // here would also skip the Scan for broken links check further
+            // down, so this just skips its own branch instead.
+            if (!this.setupBlocked && !this.disabledOnThisDevice && file.path === this.getAmoebaNotePath()) {
               await this.startOn(file, { skipFrontmatterWrite: true });
             }
           } else if (!wantsRunning && isRunning) {
@@ -2113,10 +2129,12 @@ module.exports = class AmoebaPlugin extends Plugin {
 
     // Respect a manual Stop — only auto-resume if it wasn't explicitly
     // turned off (a brand new note has no frontmatter yet, which counts
-    // as "not stopped").
+    // as "not stopped") — and never on a device disabled via
+    // DEVICE_DISABLED_KEY, regardless of what the (possibly synced-in)
+    // frontmatter says.
     const fm = this.app.metadataCache.getFileCache(mainFile)?.frontmatter;
     const explicitlyStopped = fm && fm[FIELD_ENABLED] === false;
-    if (!explicitlyStopped) {
+    if (!explicitlyStopped && !this.disabledOnThisDevice) {
       await this.startOn(mainFile);
     }
     // Backfills the Scan for broken links checkbox the first time this note
@@ -2874,6 +2892,10 @@ module.exports = class AmoebaPlugin extends Plugin {
   // only needed again if the amoeba was never initialized, or a conflict
   // blocked it and the user has since resolved it.
   async initializeAndStart() {
+    if (this.disabledOnThisDevice) {
+      new Notice('Amoeba is disabled on this device — turn it back on in settings first.');
+      return;
+    }
     await this.ensureAmoebaSetup();
     if (this.setupBlocked) return; // ensureAmoebaSetup() already surfaced the conflict Notice
     const file = this.app.vault.getAbstractFileByPath(this.getAmoebaNotePath());
@@ -2910,7 +2932,7 @@ module.exports = class AmoebaPlugin extends Plugin {
       if (!opts.skipFrontmatterWrite) {
         await this.setFrontmatterEnabled(file, true);
       }
-      new Notice('Amoeba started');
+      if (!opts.silent) new Notice('Amoeba started');
       this.scheduleTick(state);
     } else {
       const state = this.amoebas.get(file.path);
@@ -2924,7 +2946,7 @@ module.exports = class AmoebaPlugin extends Plugin {
       if (!opts.skipFrontmatterWrite) {
         await this.setFrontmatterEnabled(file, false);
       }
-      new Notice('Amoeba stopped');
+      if (!opts.silent) new Notice('Amoeba stopped');
     }
   }
 
@@ -2934,6 +2956,41 @@ module.exports = class AmoebaPlugin extends Plugin {
 
   async stop(file, opts = {}) {
     await this.setRunning(file, false, opts);
+  }
+
+  // Single place that changes the per-device disable flag — same "one
+  // setter, so nothing can drift" reasoning as setCleanupHelper()/
+  // setPoemEnabled(), just backed by localStorage (DEVICE_DISABLED_KEY)
+  // instead of settings/data.json, since this is deliberately device-local
+  // rather than something that should sync with the rest of the vault.
+  // Pauses or resumes the local tick loop immediately rather than waiting
+  // for the next reload, without writing the shared "Run Amoeba" property
+  // either way — this only ever affects the current device.
+  async setDisabledOnThisDevice(value) {
+    if (this.disabledOnThisDevice === value) return;
+    this.disabledOnThisDevice = value;
+    this.app.saveLocalStorage(DEVICE_DISABLED_KEY, value);
+
+    const file = this.app.vault.getAbstractFileByPath(this.getAmoebaNotePath());
+    if (file instanceof TFile) {
+      if (value) {
+        if (this.amoebas.has(file.path)) {
+          await this.stop(file, { skipFrontmatterWrite: true, silent: true });
+        }
+      } else {
+        const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        const shouldBeRunning = !fm || fm[FIELD_ENABLED] !== false;
+        if (shouldBeRunning && !this.setupBlocked && !this.amoebas.has(file.path)) {
+          await this.startOn(file, { skipFrontmatterWrite: true, silent: true });
+        }
+      }
+    }
+
+    new Notice(
+      value
+        ? 'Amoeba disabled on this device. Other devices sharing this vault are unaffected.'
+        : 'Amoeba re-enabled on this device.'
+    );
   }
 
   scheduleTick(state) {
@@ -3247,7 +3304,6 @@ module.exports = class AmoebaPlugin extends Plugin {
     this.writePoemToNote().catch((e) =>
       console.error('Amoeba: failed to write the restarted Vault Poem to the note', e)
     );
-    new Notice("Amoeba: today's Vault Poem cleared — a new one has started.");
   }
 
   // One slot's rendered text: POEM_PENDING_SLOT_TEXT while still waiting on
@@ -5379,6 +5435,36 @@ class AmoebaSettingTab extends PluginSettingTab {
     let linkCountSlider;
     let pseudopodsSlider;
 
+    // Obsidian's own components invoke their registered onChange whenever
+    // setValue() actually flips their value — not only when a person
+    // interacts with them — so syncing, say, the Speed dropdown from
+    // "Move like a spider"'s onChange would re-enter the dropdown's own
+    // onChange, which would then reprocess that value as a fresh pick and
+    // overwrite whatever speedMode this call was trying to set (this is
+    // exactly what caused speedMode to silently revert to 'fixed' right
+    // after being set to 'circadian', for one real example). Every setValue()
+    // call below that syncs one control's display from a different one's
+    // onChange/onClick is wrapped in withSyncGuard(); every onChange that
+    // could be re-entered this way bails out immediately while the guard
+    // is up, the same "ignore our own write" idea as pendingSelfWrites/
+    // pendingMitosisWrites elsewhere in this file, just for UI components
+    // instead of vault writes.
+    let syncingControls = false;
+    const withSyncGuard = (fn) => {
+      syncingControls = true;
+      try {
+        fn();
+      } finally {
+        syncingControls = false;
+      }
+    };
+
+    // Reference to the Initialize button's own refresh function (built
+    // further down), captured so "Disable Amoeba on this device" can grey
+    // it out immediately, the same surgical-sync pattern as every other
+    // control on this tab.
+    let refreshInitializeButton;
+
     // The only place in the whole plugin that triggers folder/note creation
     // — see initializeAndStart(). The button's label and click behavior
     // both flip based on whether an amoeba is currently running, so this
@@ -5392,7 +5478,15 @@ class AmoebaSettingTab extends PluginSettingTab {
           const running = this.plugin.amoebas.has(this.plugin.getAmoebaNotePath());
           button.setButtonText(running ? 'Stop Amoeba' : 'Start Amoeba');
           button.buttonEl.classList.toggle('mod-warning', running);
+          // Starting is blocked outright while disabled on this device (see
+          // initializeAndStart()) — greyed out here so that's visible
+          // rather than just silently no-opping on click. Stopping still
+          // works regardless, in the unlikely case something is running
+          // anyway (e.g. the device was disabled after Amoeba was already
+          // going).
+          button.setDisabled(this.plugin.disabledOnThisDevice && !running);
         };
+        refreshInitializeButton = refreshLabel;
         refreshLabel();
         button.onClick(async () => {
           if (this.plugin.amoebas.has(this.plugin.getAmoebaNotePath())) {
@@ -5403,6 +5497,29 @@ class AmoebaSettingTab extends PluginSettingTab {
           refreshLabel();
         });
       });
+
+    // A per-device override, stored outside settings/data.json (see
+    // DEVICE_DISABLED_KEY) so it never syncs along with the rest of the
+    // vault. Vault-syncing services (iCloud, Obsidian Sync, etc.) otherwise
+    // have to keep re-uploading the "Amoeba" note on every tick — as often
+    // as every second at the daily circadian peak, faster still in spider
+    // mode — and if the vault is open on more than one device at once,
+    // both devices' tick loops can write to that same note independently,
+    // which is exactly what produces sync conflicts. This lets someone
+    // keep Amoeba running on one device while it stays fully inert
+    // (no ticking, no writes at all) on every other device sharing the
+    // vault.
+    new Setting(containerEl)
+      .setName('Disable Amoeba on this device')
+      .setDesc(
+        "Stops all of Amoeba's activity on this device only — other devices sharing this vault are unaffected. Useful if this vault is synced (iCloud, Obsidian Sync, or similar) and you don't want Amoeba's frequent note edits colliding across devices."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.disabledOnThisDevice).onChange(async (value) => {
+          await this.plugin.setDisabledOnThisDevice(value);
+          refreshInitializeButton?.();
+        })
+      );
 
     // A dropdown: Circadian rhythm listed first, then the seven fixed
     // speeds ascending. No self-updating name or tooltip — the dropdown's
@@ -5438,6 +5555,15 @@ class AmoebaSettingTab extends PluginSettingTab {
       return best.key;
     };
 
+    const noteEl = containerEl.createEl('p', {
+      cls: 'setting-item-description',
+    });
+    noteEl.createEl('em', {
+      text: 'Note: This plugin frequently agitates the Graph view renderer to simulate organic movement, which may cause a spike in CPU usage as long as Graph view is open.',
+    });
+
+    new Setting(containerEl).setName('Customize your amoeba').setHeading();
+
     new Setting(containerEl)
       .setName('Speed')
       .setDesc(
@@ -5448,6 +5574,7 @@ class AmoebaSettingTab extends PluginSettingTab {
         speedDropdown = dropdown;
         for (const option of SPEED_OPTIONS) dropdown.addOption(option.key, option.label);
         dropdown.setValue(currentSpeedKey()).onChange(async (key) => {
+          if (syncingControls) return;
           const option = SPEED_OPTIONS.find((o) => o.key === key);
           if (!option) return;
           this.plugin.settings.speedMode = option.mode;
@@ -5456,7 +5583,7 @@ class AmoebaSettingTab extends PluginSettingTab {
           // 'spider' — same surgical sync as Simultaneous links/Pseudopods
           // use, so the toggle doesn't keep showing on after this exits
           // spider mode too.
-          spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+          withSyncGuard(() => spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider'));
           await this.plugin.saveSettings();
         });
       })
@@ -5468,8 +5595,10 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.settings.speedMode = DEFAULT_SETTINGS.speedMode;
             this.plugin.settings.speedMs = DEFAULT_SETTINGS.speedMs;
             await this.plugin.saveSettings();
-            speedDropdown?.setValue(currentSpeedKey());
-            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            withSyncGuard(() => {
+              speedDropdown?.setValue(currentSpeedKey());
+              spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            });
           })
       );
 
@@ -5483,9 +5612,10 @@ class AmoebaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.linkCount)
           .setDynamicTooltip()
           .onChange(async (value) => {
+            if (syncingControls) return;
             this.plugin.settings.linkCount = value;
             this.plugin.exitSpiderModeIfMismatched();
-            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            withSyncGuard(() => spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider'));
             await this.plugin.saveSettings();
           });
       })
@@ -5497,8 +5627,10 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.settings.linkCount = DEFAULT_SETTINGS.linkCount;
             this.plugin.exitSpiderModeIfMismatched();
             await this.plugin.saveSettings();
-            linkCountSlider?.setValue(this.plugin.settings.linkCount);
-            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            withSyncGuard(() => {
+              linkCountSlider?.setValue(this.plugin.settings.linkCount);
+              spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            });
           })
       );
 
@@ -5514,9 +5646,10 @@ class AmoebaSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.pseudopods)
           .setDynamicTooltip()
           .onChange(async (value) => {
+            if (syncingControls) return;
             this.plugin.settings.pseudopods = value;
             this.plugin.exitSpiderModeIfMismatched();
-            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            withSyncGuard(() => spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider'));
             await this.plugin.saveSettings();
             // Don't create pseudopod notes before Initialize has run —
             // the setting is saved either way and takes effect once it has.
@@ -5532,8 +5665,10 @@ class AmoebaSettingTab extends PluginSettingTab {
             this.plugin.exitSpiderModeIfMismatched();
             await this.plugin.saveSettings();
             if (this.plugin.isInitialized()) await this.plugin.syncPseudopods();
-            pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
-            spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            withSyncGuard(() => {
+              pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
+              spiderToggle?.setValue(this.plugin.settings.speedMode === 'spider');
+            });
           })
       );
 
@@ -5550,6 +5685,7 @@ class AmoebaSettingTab extends PluginSettingTab {
       .addToggle((toggle) => {
         spiderToggle = toggle;
         toggle.setValue(this.plugin.settings.speedMode === 'spider').onChange(async (value) => {
+          if (syncingControls) return;
           if (value) {
             // speedMode 'spider' (not 'fixed') is what actually produces
             // the bursts-then-pauses timing — see getSpiderTickDelay().
@@ -5570,18 +5706,13 @@ class AmoebaSettingTab extends PluginSettingTab {
           // directly — the same surgical-sync pattern those controls already
           // use to update this toggle — instead of a full
           // containerEl.empty()/rebuild that would reset scroll position.
-          speedDropdown?.setValue(currentSpeedKey());
-          linkCountSlider?.setValue(this.plugin.settings.linkCount);
-          pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
+          withSyncGuard(() => {
+            speedDropdown?.setValue(currentSpeedKey());
+            linkCountSlider?.setValue(this.plugin.settings.linkCount);
+            pseudopodsSlider?.setValue(this.plugin.settings.pseudopods);
+          });
         });
       });
-
-    const noteEl = containerEl.createEl('p', {
-      cls: 'setting-item-description',
-    });
-    noteEl.createEl('em', {
-      text: 'Note: This plugin frequently agitates the Graph view renderer to simulate organic movement, which may cause a spike in CPU usage as long as Graph view is open.',
-    });
 
     // Sentence case, per Obsidian's settings-heading convention. This is
     // the Settings tab's own heading text, distinct from HEADING_POEM

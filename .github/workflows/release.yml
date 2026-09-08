@@ -1,0 +1,60 @@
+name: Release
+
+# Runs whenever a version tag (e.g. "1.1.2") is pushed. Builds main.js from
+# src/main.js inside GitHub's own runner — using the committed
+# package-lock.json for exact dependency versions — instead of relying on
+# whatever main.js was built locally and uploaded by hand. That's what makes
+# the release assets reproducible and attestable.
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write       # to create the release and upload assets
+  id-token: write        # required for build provenance attestation
+  attestations: write    # to publish the attestation
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies from the committed lockfile
+        run: npm ci
+
+      - name: Build main.js from src/main.js
+        run: npm run build
+
+      - name: Confirm manifest.json version matches the tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$TAG" != "$MANIFEST_VERSION" ]; then
+            echo "Tag ($TAG) does not match manifest.json version ($MANIFEST_VERSION) — bump manifest.json before tagging."
+            exit 1
+          fi
+
+      - name: Attest build provenance for the release assets
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            main.js
+            styles.css
+
+      - name: Create draft release with the built assets
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            main.js
+            manifest.json
+            styles.css
